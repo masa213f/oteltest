@@ -1,0 +1,14 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+processors:
+exporters:
+  otlphttp:
+    endpoint: http://ingest.tracing.svc:4318
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: []
+      exporters: [otlphttp]

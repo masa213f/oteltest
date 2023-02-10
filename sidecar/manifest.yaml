@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: oteltest
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: oteltest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oteltest
+spec:
+  selector:
+    matchLabels:
+      app: oteltest
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: oteltest
+    spec:
+      containers:
+      - image: quay.io/cybozu/golang:1.19-focal
+        imagePullPolicy: IfNotPresent
+        name: test
+        command:
+        - go
+        - run
+        - .
+        workingDir: /go/src
+        env:
+        - name: HTTP_PROXY
+          value: http://squid.internet-egress.svc:3128
+        - name: HTTPS_PROXY
+          value: http://squid.internet-egress.svc:3128
+        - name: NO_PROXY
+          value: 10.0.0.0/8
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://localhost:4318
+        volumeMounts:
+        - name: cache
+          mountPath: /.cache
+        - name: go-pkg
+          mountPath: /go/pkg
+        - name: go-src
+          mountPath: /go/src
+      - args:
+        - --config=/conf/collector.yaml
+        image: quay.io/cybozu/opentelemetry-collector:0.70.0.1
+        imagePullPolicy: IfNotPresent
+        name: collector
+        volumeMounts:
+        - mountPath: /conf
+          name: collector-conf
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+      volumes:
+      - name: cache
+        emptyDir: {}
+      - name: go-pkg
+        emptyDir: {}
+      - name: go-src
+        configMap:
+          name: oteltest-go-src
+      - name: collector-conf
+        configMap:
+          name: oteltest-collector-conf
